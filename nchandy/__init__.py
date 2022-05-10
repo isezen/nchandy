@@ -244,7 +244,7 @@ def compress(ds, quantize=None, dlevel=5):  # pylint: disable=R0912
         if str(ds.dtype).startswith('float') and quantize is not None:
             q = 0.0
             if (ds != 0.0).all():
-                q = ds.where(ds != 0.0).quantile(q=0.25).values.tolist()
+                q = ds.where(ds != 0.0).quantile(q=0.25)
             e = _exp10(abs(q))
             # print(q, e)
             r = (_np.round(ds.astype('float128') * e, quantize) / e).astype(dt)
