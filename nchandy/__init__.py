@@ -247,7 +247,7 @@ def compress(ds, quantize=None, dlevel=5):  # pylint: disable=R0912
                 q = ds.where(ds != 0.0).quantile(q=0.25).values.tolist()
             e = _exp10(abs(q))
             # print(q, e)
-            r = (_np.round(ds.astype('float64') * e, quantize) / e).astype(dt)
+            r = (_np.round(ds.astype('float128') * e, quantize) / e).astype(dt)
             mae = _np.max(abs(ds - r)).astype(dt)
             r.attrs[pm_str] = mae.values.tolist()
             ds = r
