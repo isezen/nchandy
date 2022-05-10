@@ -51,8 +51,8 @@ def _update_is_required_compress(f, quantize=2, dlevel=5):
         if dp_str in ds.attrs.keys():
             if ds.attrs[dp_str] is not None and quantize is not None:
                 if quantize >= ds.attrs[dp_str]:
-                    dec_prec = None
-        if dec_prec is not None:
+                    quantize = None
+        if quantize is not None:
             compression_changed = True
     return compression_changed
 
