@@ -32,7 +32,7 @@ dependencies = [
     "colorama==0.4.4",  # Colorizes terminal output
     "colorlog==6.6.0",  # Adds color to logs
     "concurrent-log-handler==0.9.19",  # Concurrently log and rotate logs
-    "click==8.1.3",  # For the CLI
+    "click",  # For the CLI
 ]
 
 setup(
