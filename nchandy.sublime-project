@@ -1,0 +1,14 @@
+{
+	"folders":
+	[
+		{
+			"path": ".",
+			"folder_exclude_patterns": ["*.egg-info"],
+		}
+	],
+    "settings": {
+    	"SublimeLinter.linters.pycodestyle.python": "venv/bin/python",
+    	"SublimeLinter.linters.pylint.python": "venv/bin/python",
+    	"SublimeLinter.linters.pyflakes.python": "venv/bin/python",
+    },
+}
