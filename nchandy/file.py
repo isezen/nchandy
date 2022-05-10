@@ -133,7 +133,7 @@ def scale_emis(from_file, factor,
 
 def compress(from_file, quantize=None, dlevel=5, to_file=None) -> None:
     """
-    Compress a single NetCDF File
+    Compress a single NetCDF File.
 
     Args:
         from_file (FILENAME) : File to compress.
@@ -153,6 +153,7 @@ def compress(from_file, quantize=None, dlevel=5, to_file=None) -> None:
     ds = _xr.open_dataset(from_file)
     ds = _nch.compress(ds, quantize, dlevel)
     ds.to_netcdf(to_file)
+    ds.close()
 
     if modify:
         _remove(from_file)
