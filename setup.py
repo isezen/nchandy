@@ -28,6 +28,7 @@ long_description = (here / "README.md").read_text(encoding="utf-8")
 dependencies = [
     "numpy",
     "xarray",
+    "netCDF4",
     "aiofiles==0.7.0",  # Async IO for files
     "colorama==0.4.4",  # Colorizes terminal output
     "colorlog==6.6.0",  # Adds color to logs

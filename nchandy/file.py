@@ -10,7 +10,9 @@ from shutil import move as _mv
 from shutil import copy2 as _copy2
 from os import remove as _remove
 from pathlib import Path as _Path
+import subprocess as _subp
 import xarray as _xr
+import numpy as _np
 import nchandy as _nch
 
 _log = _logging.getLogger('nchandy')
@@ -154,6 +156,86 @@ def compress(from_file, quantize=None, dlevel=5, to_file=None) -> None:
     ds = _nch.compress(ds, quantize, dlevel)
     ds.to_netcdf(to_file)
     ds.close()
+
+    if modify:
+        _remove(from_file)
+        _mv(to_file, from_file)
+        _log.debug(f'tmp file renamed to {from_file}')
+    _log.info(f'Compressed: {from_file}')
+
+
+def _set_or_create_attr(var, attr_name, attr_value):
+    if attr_name in var.ncattrs():
+        var.setncattr(attr_name, attr_value)
+        return
+    var.UnusedNameAttribute = attr_value
+    var.renameAttribute("UnusedNameAttribute", attr_name)
+    return
+
+
+def ncks(from_file, quantize=None, dlevel=5, to_file=None,
+         append_stats=True) -> None:
+    """
+    Compress a single NetCDF File by ncks.
+
+    Args:
+        from_file (FILENAME) : File to compress.
+        quantize (INT)       : Decimal precision to truncate data.
+        dlevel (INT)         : Compression/deflate level between [0-9].
+        to_file (FILENAME)   : New name of compressed NetCDF file.
+    Return:
+        None
+    """
+    if quantize is None and dlevel is None:
+        raise ValueError('One of quantize or dlevel must be set.')
+
+    if quantize is not None:
+        q = float(quantize) if quantize.startswith('.') else int(quantize)
+        if isinstance(q, int) and q == 0:
+            raise ValueError('NSD quantize cannot be 0.')
+
+    if to_file is None:
+        to_file = from_file
+
+    modify = from_file == to_file
+    if modify:
+        to_file = _Path(str(to_file) + '.tmp')
+
+    dfl_lvl = ["-L", str(dlevel), "--baa=8"] if dlevel is not None else []
+    ppc = ["--ppc", f"default={quantize}"] if quantize is not None else []
+    cmd = ["ncks", "-O", "-7", "--no_abc"] + dfl_lvl + ppc + \
+          [str(from_file), str(to_file)]
+    _subp.run(cmd, check=True, capture_output=True)
+
+    if append_stats:
+        pm_str = 'precision_MAXE'
+        str_rmse = 'precision_RMSE'
+        str_range = 'range'
+        from netCDF4 import Dataset as _Dataset  # pylint: disable=E0611,C0415
+        # nco1, nco2 = _Dataset(from_file, 'r'), _Dataset(to_file, 'r+')
+        with _Dataset(from_file, 'r') as nco1, _Dataset(to_file, 'r+') as nco2:
+            glob = {'maxe': 0, 'rmse': 0}
+            for k, v in nco2.variables.items():
+                x = nco1.variables[k][:]
+                y = v[:]
+                x_range = [x.min(), x.max()]
+                y_range = [y.min(), y.max()]
+                dif = x - v
+                _log.debug(f'x_range: {x_range}, y_range: {y_range}')
+                maxe = _np.max(abs(dif))
+                rmse = _np.sqrt((dif**2).mean())
+                _log.debug(f'Processed {v.name}: MAE: {maxe} RMSE: {rmse}')
+                var_attrs = {str_range: y_range, pm_str: maxe, str_rmse: rmse}
+                glob['maxe'] = max(glob['maxe'], maxe)
+                glob['rmse'] = max(glob['rmse'], rmse)
+                for k1, v1 in var_attrs.items():
+                    _set_or_create_attr(v, k1, v1)
+                del x, y
+            gmaxe, grmse = glob['maxe'], glob['rmse']
+            _log.info(f'{pm_str}: {gmaxe}, {str_rmse}: {grmse}')
+            nco2.precision = quantize
+            nco2.precision_MAXE = gmaxe
+            nco2.precision_RMSE = grmse
 
     if modify:
         _remove(from_file)

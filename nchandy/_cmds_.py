@@ -15,7 +15,6 @@ from filecmp import cmp as _cmp
 from shutil import copy2 as _copy2
 
 import functools
-# import logging as _logging
 import click
 
 from nchandy import __version__
@@ -92,6 +91,15 @@ def _get_file_args(paths, recursive=True):
     return source, _Path(source_dir), _Path(target)
 
 
+def _get_f2(f1, source_dir, target):
+    if str(source_dir) == '.':
+        f2 = _Path(target, f1.name) if _isdir(target) else target
+    else:
+        f2 = target if str(source_dir) == '' else \
+            _Path(str(f1).replace(str(source_dir), str(target)))
+    return f2
+
+
 class FilesDefaultToStdin(click.Argument):
     """Helper Class to get PATHS argument."""
 
@@ -158,8 +166,8 @@ def version_cmd() -> None:
 @_common_options
 def scale_cmd(paths, factor, recursive,  # pylint: disable=R0912,R0913,R0914
               copy_non_nc_files, dlevel, overwrite,
-              log, log_level, verbose) -> None:
-    r"""
+              log, log_level, verbose) -> None:  # noqa:D301
+    """
     Scale NetCDF File(s) by factor of a floating number.
 
     \b
@@ -181,8 +189,7 @@ def scale_cmd(paths, factor, recursive,  # pylint: disable=R0912,R0913,R0914
     source, source_dir, target = _get_file_args(paths, recursive)
 
     for f1 in source:
-        f2 = target if source_dir == '' else \
-            _Path(str(f1).replace(str(source_dir), str(target)))
+        f2 = _get_f2(f1, source_dir, target)
         _makedirs(f2.parent, exist_ok=True)
         scale = False
         if _isfile(f1):
@@ -230,8 +237,8 @@ def scale_cmd(paths, factor, recursive,  # pylint: disable=R0912,R0913,R0914
 @_common_options
 def regrid_cmd(paths, lats, lons,  # pylint: disable=R0912,R0913,R0914
                gridfile, dim_names, recursive, copy_non_nc_files, dlevel,
-               overwrite, log, log_level, verbose) -> None:
-    r"""
+               overwrite, log, log_level, verbose) -> None:  # noqa:D301
+    """
     Regrid NetCDF File(s).
 
     \b
@@ -256,8 +263,7 @@ def regrid_cmd(paths, lats, lons,  # pylint: disable=R0912,R0913,R0914
         raise NotImplementedError('This feature is not implemented yet.')
 
     for f1 in source:
-        f2 = target if source_dir == '' else \
-             _Path(str(f1).replace(str(source_dir), str(target)))
+        f2 = _get_f2(f1, source_dir, target)
         _makedirs(f2.parent, exist_ok=True)
         rg = False
         if _isfile(f1):
@@ -307,8 +313,8 @@ def regrid_cmd(paths, lats, lons,  # pylint: disable=R0912,R0913,R0914
 @_common_options
 def compress_cmd(paths, quantize,  # pylint: disable=R0912,R0913,R0914
                  recursive, copy_non_nc_files, dlevel, overwrite,
-                 log, log_level, verbose) -> None:
-    r"""
+                 log, log_level, verbose) -> None:  # noqa:D301
+    """
     Compress NetCDF File(s).
 
     \b
@@ -327,11 +333,10 @@ def compress_cmd(paths, quantize,  # pylint: disable=R0912,R0913,R0914
         paths = tuple([_getcwd()])
 
     source, source_dir, target = _get_file_args(paths, recursive)
-
     for f1 in source:
-        f2 = target if source_dir == '' else \
-            _Path(str(f1).replace(str(source_dir), str(target)))
+        f2 = _get_f2(f1, source_dir, target)
         _makedirs(f2.parent, exist_ok=True)
+        print(source_dir, target, f2)
         compress = False
         if _isfile(f1):
             if not _is_netcdf(f1):
@@ -365,6 +370,76 @@ def compress_cmd(paths, quantize,  # pylint: disable=R0912,R0913,R0914
 
         if compress:
             _file.compress(f1, quantize, dlevel, f2)
+
+
+@cli.command("ncks", short_help="Compress NetCDF file(s) by nco->ncks command",
+             context_settings={'show_default': True})
+@click.option('--quantize', '-q', default=2, type=str,
+              help='Truncate data in variables to a given ' +
+                   'decimal precision after significant digit, e.g. -q 2.')
+@click.option('--stats', '-s', default=False, is_flag=True, 
+              help='Truncate data in variables to a given ' +
+                   'decimal precision after significant digit, e.g. -q 2.')
+@_common_options
+def compress_ncks_cmd(
+    paths, quantize, stats, # pylint: disable=R0912,R0913,R0914
+    recursive, copy_non_nc_files, dlevel, overwrite,
+    log, log_level, verbose) -> None:  # noqa:D301
+    """
+    Compress NetCDF File(s).
+
+    \b
+    Args:
+        PATHS (str): Files/Paths to compress from/to.
+                     Default is current directory.
+    ~~~~~~~~~~~~~
+    \b
+    Examples:
+        $ nch ncks -v -q 4 -d 0 path/to/files/*.nc /target/dir
+        $ nch ncks -v -q 5 gridcro.nc -d 0 path/to/nc_files /target/dir
+        $ nch ncks -v -q 6 -d 9 path/to/nc_files
+    """
+    _log = _set_logger_('compress', verbose, log_level, log)
+    if len(paths) == 0:
+        paths = tuple([_getcwd()])
+
+    source, source_dir, target = _get_file_args(paths, recursive)
+    for f1 in source:
+        f2 = _get_f2(f1, source_dir, target)
+        _makedirs(f2.parent, exist_ok=True)
+        compress = False
+        if _isfile(f1):
+            if not _is_netcdf(f1):
+                if _isfile(f2):
+                    if _cmp(f1, f2):
+                        _log.debug(f'Comparing {f1} with {f2}')
+                        msg = f"{f1} is identical to target."
+                        _log.debug(msg)
+                else:
+                    if copy_non_nc_files:
+                        _copy2(f1, f2)
+                        _log.debug(_txt1_, f1)
+                compress = False
+                continue
+        else:
+            continue
+
+        if _isfile(f2):
+            if _is_netcdf(f2):
+                compress = _update_is_required_compress(f2, quantize, dlevel)
+                if not compress:
+                    _log.info(f"{f2} is already compressed.")
+                elif not overwrite:
+                    raise FileExistsError('Use --overwrite to overwrite files')
+            else:
+                if copy_non_nc_files:
+                    _copy2(f1, f2)
+                    _log.debug(_txt1_, f1)
+        else:
+            compress = True
+
+        if compress:
+            _file.ncks(f1, quantize, dlevel, f2, stats)
 
 
 def main() -> None:  # noqa: D401

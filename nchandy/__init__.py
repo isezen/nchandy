@@ -41,7 +41,7 @@ _log_formatter_ = _logging.Formatter(
 
 def _update_is_required_compress(f, quantize=2, dlevel=5):
     """Check NetCDF file is compressed or not."""
-    dp_str = 'decimal_precision'
+    dp_str = 'precision'
     compression_changed = False
     with _xr.open_dataset(f, engine='netcdf4') as ds:
         for _, v in ds.variables.items():
@@ -114,6 +114,10 @@ def _check_dlevel(x) -> None:
 
 def _exp10(x):
     return max(10**(-_floor(_log10(x))) if x > 0 else 1, 1)
+
+
+def _exp10_2(x):
+    return 10**(-_np.floor(_np.log10(x)))
 
 
 def is_netcdf(f):
@@ -243,9 +247,23 @@ def compress(ds, quantize=None, dlevel=5):  # pylint: disable=R0912
         old_enc = ds.encoding.copy()
         if str(ds.dtype).startswith('float') and quantize is not None:
             q = 0.0
-            if (ds != 0.0).all():
-                q = ds.where(ds != 0.0).quantile(q=0.25)
-            e = _exp10(abs(q))
+            mx = ds.max().values.tolist()
+            mn = ds.min().values.tolist()
+            # if (ds != 0.0).all():
+            #     m = ds.where(ds != 0.0)
+            #     mx, mn = m.max().values.tolist(), m.min().values.tolist()
+            #     q = m.quantile(q=0.90).values.tolist()
+            #     q = m.mean().values.tolist()
+            #     q = m.max().values.tolist()
+            #     e = _exp10_2(abs(m))
+            #     e = stats.mode(e)
+            #     vals, counts = _np.unique(e, return_counts=True)
+            #     index = _np.argmax(counts)
+            #     e = vals[index]
+            #     print(e)
+            # e = _exp10(abs(q))
+            e = 1
+            _log.debug(f'Max: {mx}, Min: {mn}, exp: {e}, q: {q}')
             e = _np.array(e).astype('float64')
             r = (_np.round(ds.astype('float64') * e, quantize) / e).astype(dt)
             mae = _np.max(abs(ds - r)).astype(dt)
