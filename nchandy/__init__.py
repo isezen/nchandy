@@ -350,7 +350,7 @@ def regrid(ds, lats, lons, dim_names=None,  # pylint: disable=R0913
             "lon": (["lon"], lons),
         }
     )
-    regridder = xe.Regridder(ds, ds2, method)
+    regridder = xe.Regridder(ds, ds2, method, periodic=True)
     ds2 = regridder(ds)
     if dlevel is not None:
         for k in ds2.keys():
